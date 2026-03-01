@@ -15,6 +15,7 @@ import {
   getChannelFactory,
   getRegisteredChannelNames,
 } from './channels/registry.js';
+import { GmailChannel } from './channels/gmail.js';
 import {
   ContainerOutput,
   runContainerAgent,
@@ -153,7 +154,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
   const channel = findChannel(channels, chatJid);
   if (!channel) {
-    logger.warn({ chatJid }, 'No channel owns JID, skipping messages');
+    console.log(`Warning: no channel owns JID ${chatJid}, skipping messages`);
     return true;
   }
 
@@ -387,7 +388,9 @@ async function startMessageLoop(): Promise<void> {
 
           const channel = findChannel(channels, chatJid);
           if (!channel) {
-            logger.warn({ chatJid }, 'No channel owns JID, skipping messages');
+            console.log(
+              `Warning: no channel owns JID ${chatJid}, skipping messages`,
+            );
             continue;
           }
 
@@ -596,6 +599,17 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const gmail = new GmailChannel(channelOpts);
+  channels.push(gmail);
+  try {
+    await gmail.connect();
+  } catch (err) {
+    logger.warn(
+      { err },
+      'Gmail channel failed to connect, continuing without it',
+    );
+  }
+
   // Start subsystems (independently of connection handler)
   startSchedulerLoop({
     registeredGroups: () => registeredGroups,
@@ -606,7 +620,7 @@ async function main(): Promise<void> {
     sendMessage: async (jid, rawText) => {
       const channel = findChannel(channels, jid);
       if (!channel) {
-        logger.warn({ jid }, 'No channel owns JID, cannot send message');
+        console.log(`Warning: no channel owns JID ${jid}, cannot send message`);
         return;
       }
       const text = formatOutbound(rawText);
